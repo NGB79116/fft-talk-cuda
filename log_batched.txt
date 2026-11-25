@@ -1,0 +1,21 @@
+GPU: NVIDIA GeForce GTX 1080 Ti  (sm_61, 28 SMs)  CUDA runtime 11.4  TILE_LOG2=10  smem padding ON
+device-to-device copy bandwidth (read+write): 356.9 GB/s
+
+batched: N = 128, batch = 32768
+  v3_stockham_batch  N=2^7  batch=32768      0.2888 ms      508.3 GFLOP/s*     232.4 GB/s(ideal traffic)  err=1.61e-07 
+  cufft_batched      N=2^7  batch=32768      0.1948 ms      753.6 GFLOP/s*     344.5 GB/s(ideal traffic)  err=2.09e-07 
+batched: N = 256, batch = 16384
+  v3_stockham_batch  N=2^8  batch=16384      0.2548 ms      658.4 GFLOP/s*     263.4 GB/s(ideal traffic)  err=1.39e-07 
+  cufft_batched      N=2^8  batch=16384      0.1910 ms      878.2 GFLOP/s*     351.3 GB/s(ideal traffic)  err=2.91e-07 
+batched: N = 512, batch = 8192
+  v3_stockham_batch  N=2^9  batch=8192       0.2752 ms      685.9 GFLOP/s*     243.9 GB/s(ideal traffic)  err=1.71e-07 
+  cufft_batched      N=2^9  batch=8192       0.1914 ms      986.0 GFLOP/s*     350.6 GB/s(ideal traffic)  err=4.57e-07 
+batched: N = 1024, batch = 4096
+  v3_stockham_batch  N=2^10 batch=4096       0.3125 ms      671.1 GFLOP/s*     214.8 GB/s(ideal traffic)  err=1.71e-07 
+  cufft_batched      N=2^10 batch=4096       0.1918 ms     1093.6 GFLOP/s*     349.9 GB/s(ideal traffic)  err=4.39e-07 
+batched: N = 2048, batch = 2048
+  v3_stockham_batch  N=2^11 batch=2048       0.3712 ms      621.5 GFLOP/s*     180.8 GB/s(ideal traffic)  err=1.91e-07 
+  cufft_batched      N=2^11 batch=2048       0.1925 ms     1198.2 GFLOP/s*     348.6 GB/s(ideal traffic)  err=3.78e-07 
+wrote results_batched.csv
+
+* GFLOP/s uses 5*N*log2(N) for every kernel (naive DFT included).

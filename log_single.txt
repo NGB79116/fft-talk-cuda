@@ -1,0 +1,72 @@
+GPU: NVIDIA GeForce GTX 1080 Ti  (sm_61, 28 SMs)  CUDA runtime 11.4  TILE_LOG2=10  smem padding ON
+device-to-device copy bandwidth (read+write): 359.4 GB/s
+
+N = 2^10 = 1024
+  v0_dft_naive       N=2^10 batch=1          0.3689 ms        0.1 GFLOP/s*       0.0 GB/s(ideal traffic)  err=9.08e-07 
+  v1_radix2_global   N=2^10 batch=1          0.0214 ms        2.4 GFLOP/s*       0.8 GB/s(ideal traffic)  err=1.15e-07 
+  v2_radix2_tiled    N=2^10 batch=1          0.0079 ms        6.4 GFLOP/s*       2.1 GB/s(ideal traffic)  err=1.15e-07 
+  cufft              N=2^10 batch=1          0.0043 ms       11.9 GFLOP/s*       3.8 GB/s(ideal traffic)  err=3.32e-07 
+N = 2^11 = 2048
+  v0_dft_naive       N=2^11 batch=1          0.7396 ms        0.2 GFLOP/s*       0.0 GB/s(ideal traffic)  err=1.35e-06 
+  v1_radix2_global   N=2^11 batch=1          0.0233 ms        4.8 GFLOP/s*       1.4 GB/s(ideal traffic)  err=1.47e-07 
+  v2_radix2_tiled    N=2^11 batch=1          0.0098 ms       11.5 GFLOP/s*       3.3 GB/s(ideal traffic)  err=1.47e-07 
+  cufft              N=2^11 batch=1          0.0046 ms       24.6 GFLOP/s*       7.1 GB/s(ideal traffic)  err=2.92e-07 
+N = 2^12 = 4096
+  v0_dft_naive       N=2^12 batch=1          1.4859 ms        0.2 GFLOP/s*       0.0 GB/s(ideal traffic)  err=2.03e-06 
+  v1_radix2_global   N=2^12 batch=1          0.0251 ms        9.8 GFLOP/s*       2.6 GB/s(ideal traffic)  err=1.66e-07 
+  v2_radix2_tiled    N=2^12 batch=1          0.0120 ms       20.5 GFLOP/s*       5.5 GB/s(ideal traffic)  err=1.66e-07 
+  cufft              N=2^12 batch=1          0.0051 ms       47.8 GFLOP/s*      12.7 GB/s(ideal traffic)  err=3.45e-07 
+N = 2^13 = 8192
+  v0_dft_naive       N=2^13 batch=1          3.1717 ms        0.2 GFLOP/s*       0.0 GB/s(ideal traffic)  err=3.39e-06 
+  v1_radix2_global   N=2^13 batch=1          0.0276 ms       19.3 GFLOP/s*       4.8 GB/s(ideal traffic)  err=1.91e-07 
+  v2_radix2_tiled    N=2^13 batch=1          0.0139 ms       38.4 GFLOP/s*       9.5 GB/s(ideal traffic)  err=1.91e-07 
+  cufft              N=2^13 batch=1          0.0102 ms       52.2 GFLOP/s*      12.9 GB/s(ideal traffic)  err=2.64e-07 
+N = 2^14 = 16384
+  v0_dft_naive       N=2^14 batch=1          6.8866 ms        0.2 GFLOP/s*       0.0 GB/s(ideal traffic)  err=4.37e-06 
+  v1_radix2_global   N=2^14 batch=1          0.0316 ms       36.3 GFLOP/s*       8.3 GB/s(ideal traffic)  err=2.02e-07 
+  v2_radix2_tiled    N=2^14 batch=1          0.0160 ms       71.5 GFLOP/s*      16.3 GB/s(ideal traffic)  err=2.02e-07 
+  cufft              N=2^14 batch=1          0.0087 ms      131.4 GFLOP/s*      30.0 GB/s(ideal traffic)  err=4.35e-07 
+N = 2^15 = 32768
+  v0_dft_naive       N=2^15 batch=1         17.1984 ms        0.1 GFLOP/s*       0.0 GB/s(ideal traffic)  err=6.52e-06 
+  v1_radix2_global   N=2^15 batch=1          0.0316 ms       77.9 GFLOP/s*      16.6 GB/s(ideal traffic)  err=2.06e-07 
+  v2_radix2_tiled    N=2^15 batch=1          0.0181 ms      135.5 GFLOP/s*      28.9 GB/s(ideal traffic)  err=2.06e-07 
+  cufft              N=2^15 batch=1          0.0086 ms      285.7 GFLOP/s*      61.0 GB/s(ideal traffic)  err=3.37e-07 
+N = 2^16 = 65536
+  v1_radix2_global   N=2^16 batch=1          0.0405 ms      129.4 GFLOP/s*      25.9 GB/s(ideal traffic)  err=1.84e-07 
+  v2_radix2_tiled    N=2^16 batch=1          0.0248 ms      211.5 GFLOP/s*      42.3 GB/s(ideal traffic)  err=1.84e-07 
+  cufft              N=2^16 batch=1          0.0091 ms      579.2 GFLOP/s*     115.8 GB/s(ideal traffic)  err=3.42e-07 
+N = 2^17 = 131072
+  v1_radix2_global   N=2^17 batch=1          0.0578 ms      192.9 GFLOP/s*      36.3 GB/s(ideal traffic)  err=1.91e-07 
+  v2_radix2_tiled    N=2^17 batch=1          0.0376 ms      296.6 GFLOP/s*      55.8 GB/s(ideal traffic)  err=1.91e-07 
+  cufft              N=2^17 batch=1          0.0150 ms      743.9 GFLOP/s*     140.0 GB/s(ideal traffic)  err=3.63e-07 
+N = 2^18 = 262144
+  v1_radix2_global   N=2^18 batch=1          0.1071 ms      220.4 GFLOP/s*      39.2 GB/s(ideal traffic)  err=2.33e-07 
+  v2_radix2_tiled    N=2^18 batch=1          0.0724 ms      325.7 GFLOP/s*      57.9 GB/s(ideal traffic)  err=2.33e-07 
+  cufft              N=2^18 batch=1          0.0243 ms      971.8 GFLOP/s*     172.8 GB/s(ideal traffic)  err=3.95e-07 
+N = 2^19 = 524288
+  v1_radix2_global   N=2^19 batch=1          0.5729 ms       86.9 GFLOP/s*      14.6 GB/s(ideal traffic)  err=2.52e-07 
+  v2_radix2_tiled    N=2^19 batch=1          0.3224 ms      154.5 GFLOP/s*      26.0 GB/s(ideal traffic)  err=2.52e-07 
+  cufft              N=2^19 batch=1          0.0660 ms      754.5 GFLOP/s*     127.1 GB/s(ideal traffic)  err=4.54e-07 
+N = 2^20 = 1048576
+  v1_radix2_global   N=2^20 batch=1          1.3545 ms       77.4 GFLOP/s*      12.4 GB/s(ideal traffic)  err=2.80e-07 
+  v2_radix2_tiled    N=2^20 batch=1          0.8592 ms      122.0 GFLOP/s*      19.5 GB/s(ideal traffic)  err=2.80e-07 
+  cufft              N=2^20 batch=1          0.1318 ms      795.4 GFLOP/s*     127.3 GB/s(ideal traffic)  err=6.54e-07 
+N = 2^21 = 2097152
+  v1_radix2_global   N=2^21 batch=1          2.9712 ms       74.1 GFLOP/s*      11.3 GB/s(ideal traffic)  err=3.04e-07 
+  v2_radix2_tiled    N=2^21 batch=1          2.0271 ms      108.6 GFLOP/s*      16.6 GB/s(ideal traffic)  err=3.04e-07 
+  cufft              N=2^21 batch=1          0.3073 ms      716.6 GFLOP/s*     109.2 GB/s(ideal traffic)  err=4.90e-07 
+N = 2^22 = 4194304
+  v1_radix2_global   N=2^22 batch=1          6.2380 ms       74.0 GFLOP/s*      10.8 GB/s(ideal traffic)  err=2.69e-07 
+  v2_radix2_tiled    N=2^22 batch=1          4.3317 ms      106.5 GFLOP/s*      15.5 GB/s(ideal traffic)  err=2.69e-07 
+  cufft              N=2^22 batch=1          0.6065 ms      760.7 GFLOP/s*     110.6 GB/s(ideal traffic)  err=4.95e-07 
+N = 2^23 = 8388608
+  v1_radix2_global   N=2^23 batch=1         12.8778 ms       74.9 GFLOP/s*      10.4 GB/s(ideal traffic)  err=3.23e-07 
+  v2_radix2_tiled    N=2^23 batch=1          9.1000 ms      106.0 GFLOP/s*      14.7 GB/s(ideal traffic)  err=3.23e-07 
+  cufft              N=2^23 batch=1          1.2210 ms      790.1 GFLOP/s*     109.9 GB/s(ideal traffic)  err=5.17e-07 
+N = 2^24 = 16777216
+  v1_radix2_global   N=2^24 batch=1         26.5826 ms       75.7 GFLOP/s*      10.1 GB/s(ideal traffic)  err=2.89e-07 
+  v2_radix2_tiled    N=2^24 batch=1         19.0015 ms      106.0 GFLOP/s*      14.1 GB/s(ideal traffic)  err=2.89e-07 
+  cufft              N=2^24 batch=1          2.4591 ms      818.7 GFLOP/s*     109.2 GB/s(ideal traffic)  err=5.34e-07 
+wrote results_single.csv
+
+* GFLOP/s uses 5*N*log2(N) for every kernel (naive DFT included).
