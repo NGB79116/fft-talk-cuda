@@ -6,9 +6,14 @@
 //                        memory (one global round trip), remaining stages in global memory
 //   v3  stockham_batched many small FFTs (N <= 2048): one block per FFT, ping-pong shared
 //                        buffers, no bit reversal at all (batched mode only)
+//   v4  fourstep         two-pass "four-step" FFT, N = N1*N2 (N1,N2 <= 4096): pass 1 does N2 column
+//                        FFTs of length N1, then a twiddle multiply; pass 2 does N1 row FFTs of
+//                        length N2 and stores the result transposed. 2 global passes instead of
+//                        v2's 13, using 4096-point shared-memory tiles (several FFTs per block so
+//                        strided accesses still move whole 32-byte sectors). Single mode, N >= 2^12.
 //   ref cuFFT            the ceiling
 //
-// Build:  make            (see Makefile; ARCH defaults to native)
+// Build:  make           (see Makefile; ARCH defaults to native)
 // Run:    ./fft_bench --min-log 10 --max-log 24 --csv results_single.csv
 //         ./fft_bench --batched --csv results_batched.csv
 //
@@ -160,8 +165,101 @@ __global__ void stockham_batched_kernel(const float2* __restrict__ in, float2* _
     gout[t + N / 2] = src[t + N / 2];
 }
 
+// ----------------------------------------------------------------------------- v4: four-step (two-pass)
+// N = N1*N2 with logN1 = ceil(logN/2), logN2 = floor(logN/2), view x as an N1 x N2 row-major matrix:
+//   x[n1*N2 + n2]  ->  (1) N2 column FFTs of length N1 (stride N2), (2) multiply by W_N^(n2*k1),
+//   (3) N1 row FFTs of length N2,  X[k1 + N1*k2] = Z[k1][k2]  (so the final store is a transpose).
+// Each block holds FOUR_TILE = 4096 points in shared memory: G = 4096/L independent FFTs of length L,
+// stored with a row stride of L+1 float2 so the transposed reads/writes are bank-conflict free.
+// Adjacent FFTs in a block are adjacent columns (pass 1) / adjacent rows (pass 2), so every global
+// access moves G consecutive float2 (G=4 -> a full 32-byte sector; G=1 only for N = 2^23, 2^24).
+#define FOUR_LOG2 12
+#define FOUR_TILE (1 << FOUR_LOG2)
+#define FOUR_THREADS 1024
+
+// All G FFTs of the block advance one radix-2 stage at a time (same index math as v2).
+__device__ __forceinline__ void smem_stages(float2* sm, int logL, int G, int ld) {
+    const int half = 1 << (logL - 1);                // butterflies per FFT per stage
+    const int nb = G << (logL - 1);                  // butterflies per block per stage
+    for (int s = 0; s < logL; ++s) {
+        const int h = 1 << s;
+        for (int b = threadIdx.x; b < nb; b += blockDim.x) {
+            const int g = b >> (logL - 1);
+            const int t = b & (half - 1);
+            const int j = t & (h - 1);
+            const int i = ((t >> s) << (s + 1)) + j;
+            float2* p = sm + g * ld;
+            float2 w = twiddle(j, h);
+            float2 a = p[i];
+            float2 c = cmul(p[i + h], w);
+            p[i]     = cadd(a, c);
+            p[i + h] = csub(a, c);
+        }
+        __syncthreads();
+    }
+}
+
+// Pass 1: column FFTs (length N1) + inter-stage twiddle. in -> out, both laid out as N1 rows x N2 cols.
+__global__ void __launch_bounds__(FOUR_THREADS)
+fourstep_cols_kernel(const float2* __restrict__ in, float2* __restrict__ out, int logN1, int logN2) {
+    extern __shared__ float2 sm[];
+    const int N1 = 1 << logN1, N2 = 1 << logN2, N = N1 << logN2;
+    const int logG = FOUR_LOG2 - logN1, G = 1 << logG, ld = N1 + 1;
+    const int c0 = blockIdx.x * G;                   // first column of this block
+    for (int f = threadIdx.x; f < FOUR_TILE; f += blockDim.x) {
+        const int g = f & (G - 1), m = f >> logG;    // column c0+g, row m (g fastest: adjacent addresses)
+        sm[g * ld + (int)bitrev((unsigned)m, logN1)] = in[(size_t)m * N2 + c0 + g];
+    }
+    __syncthreads();
+    smem_stages(sm, logN1, G, ld);
+    for (int f = threadIdx.x; f < FOUR_TILE; f += blockDim.x) {
+        const int g = f & (G - 1), k1 = f >> logG, c = c0 + g;
+        float2 v = cmul(sm[g * ld + k1], twiddle(c * k1, N >> 1));   // exp(-2*pi*i*c*k1/N); c*k1 < N
+        out[(size_t)k1 * N2 + c] = v;
+    }
+}
+
+// Pass 2: row FFTs (length N2), stored transposed: out[k2*N1 + k1] = Z[k1][k2].
+__global__ void __launch_bounds__(FOUR_THREADS)
+fourstep_rows_kernel(const float2* __restrict__ in, float2* __restrict__ out, int logN1, int logN2) {
+    extern __shared__ float2 sm[];
+    const int N1 = 1 << logN1, N2 = 1 << logN2;
+    const int logG = FOUR_LOG2 - logN2, G = 1 << logG, ld = N2 + 1;
+    const int r0 = blockIdx.x * G;                   // first row (k1) of this block
+    for (int f = threadIdx.x; f < FOUR_TILE; f += blockDim.x) {
+        const int g = f >> logN2, n2 = f & (N2 - 1);                   // row r0+g, contiguous in n2
+        sm[g * ld + (int)bitrev((unsigned)n2, logN2)] = in[(size_t)(r0 + g) * N2 + n2];
+    }
+    __syncthreads();
+    smem_stages(sm, logN2, G, ld);
+    for (int f = threadIdx.x; f < FOUR_TILE; f += blockDim.x) {
+        const int g = f & (G - 1), k2 = f >> logG;                      // g fastest: adjacent k1 -> adjacent addresses
+        out[(size_t)k2 * N1 + r0 + g] = sm[g * ld + k2];
+    }
+}
+
 // ----------------------------------------------------------------------------- host: launchers
 static inline int ilog2i(int v) { int l = 0; while ((1 << l) < v) ++l; return l; }
+
+// v4 needs one N-point scratch buffer between the two passes. It is (re)allocated on first use for
+// each size, i.e. during the untimed correctness launch, never inside the timed loop.
+static float2* g_scratch = nullptr;
+static size_t  g_scratch_n = 0;
+static void ensure_scratch(size_t n) {
+    if (n <= g_scratch_n) return;
+    if (g_scratch) cudaFree(g_scratch);
+    CUDA_CHECK(cudaMalloc(&g_scratch, n * sizeof(float2)));
+    g_scratch_n = n;
+}
+static void launch_fourstep(const float2* d_in, float2* d_out, int N) {
+    const int logN = ilog2i(N), logN1 = (logN + 1) / 2, logN2 = logN / 2;
+    const int G1 = 1 << (FOUR_LOG2 - logN1), G2 = 1 << (FOUR_LOG2 - logN2);
+    ensure_scratch((size_t)N);
+    fourstep_cols_kernel<<<(1 << logN2) / G1, FOUR_THREADS, (size_t)G1 * ((1 << logN1) + 1) * sizeof(float2)>>>(
+        d_in, g_scratch, logN1, logN2);
+    fourstep_rows_kernel<<<(1 << logN1) / G2, FOUR_THREADS, (size_t)G2 * ((1 << logN2) + 1) * sizeof(float2)>>>(
+        g_scratch, d_out, logN1, logN2);
+}
 
 static void launch_naive(const float2* d_in, float2* d_out, int N) {
     int block = 128;
@@ -316,6 +414,8 @@ static void run_single(int minLog, int maxLog, int naiveMaxLog, const std::strin
             check_and_time("v0_dft_naive", [&] { launch_naive(d_in, d_out, N); }, std::min(iters, 5));
         check_and_time("v1_radix2_global", [&] { launch_radix2_global(d_in, d_out, N); }, iters);
         check_and_time("v2_radix2_tiled",  [&] { launch_radix2_tiled(d_in, d_out, N); }, iters);
+        if (logN >= 12 && logN <= 24)                // N1, N2 <= 4096 and >= 1 FFT per block
+            check_and_time("v4_fourstep", [&] { launch_fourstep(d_in, d_out, N); }, iters);
 
         cufftHandle plan;
         CUFFT_CHECK(cufftPlan1d(&plan, N, CUFFT_C2C, 1));

@@ -88,6 +88,49 @@ def stockham(x):
     return src
 
 
+def fourstep(x, tile_log2=12):
+    """Two-pass four-step FFT, N = N1*N2, mirroring fourstep_cols_kernel / fourstep_rows_kernel.
+
+    pass 1: G1 adjacent columns per block (stride-N2 loads), N1-point FFTs in "shared memory",
+            twiddle W_N^(c*k1), store Y[k1*N2 + c]
+    pass 2: G2 adjacent rows per block, N2-point FFTs, store transposed X[k2*N1 + k1].
+    G = 2^(tile_log2 - log2(L)) FFTs of length L share one block (G*L = 2^tile_log2 points).
+    """
+    N = len(x)
+    logN = N.bit_length() - 1
+    logN1, logN2 = (logN + 1) // 2, logN // 2
+    N1, N2 = 1 << logN1, 1 << logN2
+    logG1, logG2 = tile_log2 - logN1, tile_log2 - logN2
+    assert logG1 >= 0 and logG2 >= 0, "N too large for this tile size"
+    G1, G2 = 1 << logG1, 1 << logG2
+    assert N2 % G1 == 0 and N1 % G2 == 0
+    Y = np.zeros(N, dtype=complex)
+    for blk in range(N2 // G1):
+        c0 = blk * G1
+        sm = np.zeros((G1, N1), dtype=complex)
+        f = np.arange(G1 * N1)
+        g, m = f & (G1 - 1), f >> logG1
+        sm[g, bitrev(m, logN1)] = x[m * N2 + c0 + g]
+        for s in range(logN1):
+            for gg in range(G1):
+                radix2_stage(sm[gg], s)
+        k1, c = f >> logG1, c0 + g
+        Y[k1 * N2 + c] = sm[g, k1] * tw(c * k1, N // 2)
+    out = np.zeros(N, dtype=complex)
+    for blk in range(N1 // G2):
+        r0 = blk * G2
+        sm = np.zeros((G2, N2), dtype=complex)
+        f = np.arange(G2 * N2)
+        g, n2 = f >> logN2, f & (N2 - 1)
+        sm[g, bitrev(n2, logN2)] = Y[(r0 + g) * N2 + n2]
+        for s in range(logN2):
+            for gg in range(G2):
+                radix2_stage(sm[gg], s)
+        g, k2 = f & (G2 - 1), f >> logG2
+        out[k2 * N1 + r0 + g] = sm[g, k2]
+    return out
+
+
 def rel(a, b):
     return np.abs(a - b).max() / np.abs(b).max()
 
@@ -107,6 +150,18 @@ def main():
             ok &= not bad
             if bad or name in ("stockham", "tiled_K3") and logN in (4, 12):
                 print(f"N=2^{logN:<2d} {name:14s} rel_err={e:.2e} {'FAIL' if bad else 'ok'}")
+    for logN in range(12, 21):
+        N = 1 << logN
+        x = rng.uniform(-1, 1, N) + 1j * rng.uniform(-1, 1, N)
+        ref = np.fft.fft(x)
+        for tl in (12, 9):
+            if (logN + 1) // 2 > tl:
+                continue
+            e = rel(fourstep(x, tl), ref)
+            bad = e > 1e-10
+            ok &= not bad
+            if bad or logN in (12, 20):
+                print(f"N=2^{logN:<2d} fourstep tile=2^{tl:<2d} rel_err={e:.2e} {'FAIL' if bad else 'ok'}")
     print("ALL PASS" if ok else "SOME FAILED")
     raise SystemExit(0 if ok else 1)
 

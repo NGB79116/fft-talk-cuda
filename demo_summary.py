@@ -27,7 +27,8 @@ def main(path):
     def lg(n):
         return n.bit_length() - 1
 
-    hdr = f"{'N':>7} {'v0 DFT':>10} {'v1 global':>10} {'v2 tiled':>10} {'cuFFT':>9} {'v2 vs v1':>9} {'v2 % cuFFT':>11} {'v2 GB/s':>8} {'max err':>9}"
+    hdr = (f"{'N':>7} {'v0 DFT':>10} {'v1 global':>10} {'v2 tiled':>10} {'v4 2-pass':>10} {'cuFFT':>9} "
+           f"{'v2 vs v1':>9} {'v2 % cuFFT':>11} {'v4 % cuFFT':>11} {'max err':>9}")
     print()
     print("times in ms per transform (complex float, one GPU)")
     print(hdr)
@@ -42,16 +43,22 @@ def main(path):
             continue
         v1, v2, cu = (float(k[x]["ms"]) for x in need)
         v0 = f"{float(k['v0_dft_naive']['ms']):10.3f}" if "v0_dft_naive" in k else f"{'-':>10}"
+        if "v4_fourstep" in k:
+            v4t = f"{float(k['v4_fourstep']['ms']):10.3f}"
+            v4p = f"{100 * cu / float(k['v4_fourstep']['ms']):10.0f}%"
+        else:
+            v4t, v4p = f"{'-':>10}", f"{'-':>11}"
         err = max(float(x["rel_err"]) for x in k.values())
         bad = err >= THRESH
         ok &= not bad
-        print(f"2^{lg(n):<5d} {v0} {v1:10.3f} {v2:10.3f} {cu:9.3f} {v1 / v2:8.1f}x {100 * cu / v2:10.0f}% "
-              f"{float(k['v2_radix2_tiled']['eff_gbps']):8.0f} {err:9.1e}{'  <-- FAIL' if bad else ''}")
+        print(f"2^{lg(n):<5d} {v0} {v1:10.3f} {v2:10.3f} {v4t} {cu:9.3f} {v1 / v2:8.1f}x {100 * cu / v2:10.0f}% "
+              f"{v4p} {err:9.1e}{'  <-- FAIL' if bad else ''}")
     print()
     if ceiling:
-        print(f"device-to-device copy ceiling: {ceiling:.0f} GB/s  (v2 GB/s column = 16*N bytes / time)")
+        print(f"device-to-device copy ceiling: {ceiling:.0f} GB/s")
     print("v2 vs v1: how much fusing 10 stages into one shared-memory pass buys.")
-    print("v2 % cuFFT: 100% would match the library; lower means the library is faster.")
+    print("v4 2-pass: four-step FFT, 2 global-memory passes instead of v2's many (N >= 2^12).")
+    print("% cuFFT: 100% would match the library; lower means the library is faster.")
     print(f"correctness (max error vs double-precision CPU FFT, threshold {THRESH:g}): {'ALL PASS' if ok else 'PROBLEM'}")
     return 0 if ok else 1
 
